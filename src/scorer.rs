@@ -4,7 +4,8 @@ use std::cell::Cell;
 use std::collections::BTreeMap;
 use url::Url;
 use regex::Regex;
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
+//use lazy_static::lazy_static;
 use html5ever::tree_builder::TreeSink;
 use markup5ever_rcdom::Node;
 use markup5ever_rcdom::NodeData::{Element, Text};
@@ -23,31 +24,38 @@ use crate::dom;
 
 pub static PUNCTUATIONS_REGEX: &'static str = r"([、。，．！？]|\.[^A-Za-z0-9]|,[^0-9]|!|\?)";
 pub static UNLIKELY_CANDIDATES: &'static str =
-    "combx|comment|community|disqus|extra|foot|header|menu\
-     |remark|rss|shoutbox|sidebar|sponsor|ad-break|agegate\
+    "-ad-|ai2html|banner|breadcrumbs|combx|comment|community|cover-wrap|disqus|extra|foot|footer|gdpr|header|legends|menu\
+     |related|remark|replies|rss|shoutbox|skyscraper|sidebar|social|sponsor|supplemental|ad-break|agegate\
      |pagination|pager|popup|tweet|twitter\
      |ssba";
 pub static LIKELY_CANDIDATES: &'static str = "and|article|body|column|main|shadow\
                                               |content|hentry";
 pub static POSITIVE_CANDIDATES: &'static str =
-    "article|body|content|entry|hentry|main|page\
-     |pagination|post|text|blog|story";
+    "article|body|content|entry|hentry|h-entry|main|page\
+     |pagination|post|text|blog|story|i";
 pub static NEGATIVE_CANDIDATES: &'static str =
-    "combx|comment|com|contact|foot|footer|footnote\
-     |masthead|media|meta|outbrain|promo|related\
-     |scroll|shoutbox|sidebar|sponsor|shopping\
+    "banner|combx|comment|com|contact|foot|footer|footnote\
+     |gdpr|masthead|media|meta|outbrain|promo|related\
+     |scroll|shoutbox|sidebar|skyscraper|sponsor|shopping\
      |tags|tool|widget|form|textfield\
      |uiScale|hidden";
 static BLOCK_CHILD_TAGS: [&'static str; 10] = [
     "a", "blockquote", "dl", "div", "img", "ol", "p", "pre", "table", "ul",
 ];
-lazy_static! {
-    static ref PUNCTUATIONS: Regex = Regex::new(PUNCTUATIONS_REGEX).unwrap();
-    static ref LIKELY:       Regex = Regex::new(LIKELY_CANDIDATES).unwrap();
-    static ref UNLIKELY:     Regex = Regex::new(UNLIKELY_CANDIDATES).unwrap();
-    static ref POSITIVE:     Regex = Regex::new(POSITIVE_CANDIDATES).unwrap();
-    static ref NEGATIVE:     Regex = Regex::new(NEGATIVE_CANDIDATES).unwrap();
-}
+//lazy_static! {
+//macro_rules! regex {
+//   ($re:expr $(,)?) => {{
+//       static RE: once_cell::sync::OnceCell<regex::Regex> = once_cell::sync::OnceCell::new();
+//        RE.get_or_init(|| regex::Regex::new($re).unwrap())
+//    }};
+//}
+//    static ref PUNCTUATIONS: Regex = Regex::new(PUNCTUATIONS_REGEX).unwrap();
+    static PUNCTUATIONS: Lazy<Regex> = Lazy::new(|| Regex::new(PUNCTUATIONS_REGEX).unwrap());
+    static LIKELY:       Lazy<Regex> = Lazy::new(|| Regex::new(LIKELY_CANDIDATES).unwrap());
+    static UNLIKELY:     Lazy<Regex> = Lazy::new(|| Regex::new(UNLIKELY_CANDIDATES).unwrap());
+    static POSITIVE:     Lazy<Regex> = Lazy::new(|| Regex::new(POSITIVE_CANDIDATES).unwrap());
+    static NEGATIVE:     Lazy<Regex> = Lazy::new(|| Regex::new(NEGATIVE_CANDIDATES).unwrap());
+//}
 
 pub struct Candidate {
     pub node:  Rc<Node>,
@@ -102,9 +110,9 @@ pub fn init_content_score(handle: Handle) -> f32 {
     let score = match tag_name.as_ref() {
         "article"    => 10.0,
         "div"        => 5.0,
-        "blockquote" => 3.0,
-        "form"       => -3.0,
-        "th"         => 5.0,
+        "blockquote"| "pre"| "td" => 3.0,
+        "form"| "address"| "ol"| "ul"| "dl"| "dd"| "dt"| "li"=> -3.0,
+        "th"| "h1"| "h2"| "h3"| "h4"| "h5"| "h6"=> 5.0,
         _            => 0.0,
     };
     score + get_class_weight(handle.clone())
@@ -148,7 +156,7 @@ pub fn preprocess(mut dom: &mut RcDom, handle: Handle, mut title: &mut String) -
                 "script" | "link" | "style"  => {
                     return true
                 },
-                "title" => dom::extract_text(handle.clone(), &mut title, true),
+                "title" | "dc:title"| "dcterm:title"| "og:title"| "weibo:article:title"| "weibo:webpage:title"| "twitter:title" => dom::extract_text(handle.clone(), &mut title, true),
                 _     => (),
             }
             for name in ["id", "class"].iter() {

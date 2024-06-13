@@ -39,7 +39,7 @@ pub fn set_attr(attr_name: &str, value: &str, handle: Handle) {
                 match StrTendril::from_str(value) {
                     Ok(value) => attrs[index] = Attribute {
                         name:  attrs[index].name.clone(),
-                        value: value,
+                        value,
                     },
                     Err(_) => (),
                 }

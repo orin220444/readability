@@ -80,5 +80,5 @@ pub fn extract<R>(input: &mut R, url: &Url) -> Result<Product, Error> where R: R
 
     let mut text: String = String::new();
     dom::extract_text(node.clone(), &mut text, true);
-    Ok(Product { title: title, content: content, text: text })
+    Ok(Product { title, content, text })
 }
